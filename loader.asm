@@ -27,7 +27,7 @@ p_mode_start:
 
     mov ax, SELECTOR_VIDEO
     mov gs, ax
-    mov byte [gs:160], '9'
+    mov byte [gs:160], 'P'
 
     jmp $
 
@@ -47,7 +47,7 @@ video_desc:
 
     GDT_SIZE  equ $ - gdt_base
     GDT_LIMIT equ GDT_SIZE - 1
-    times 50 dq 0
+    times 60 dq 0
 
     SELECTOR_CODE  equ (0x0001 << 3) + TI_GDT + RPL0
     SELECTOR_DATA  equ (0x0002 << 3) + TI_GDT + RPL0

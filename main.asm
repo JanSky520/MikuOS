@@ -9,15 +9,11 @@ section mbr vstart=0x7c00
     mov ax, 0xb800
     mov gs, ax
 
-    mov ax, 0x0600
-    mov bx, 0x0700
-    mov cx, 0
-    mov dx, 0x184f
+    mov ax, 3
     int 0x10
 
-    mov byte [gs:0], 'A'
-    mov byte [gs:2], 'S'
-    mov byte [gs:4], 'M'
+    mov si, msg
+    call print
     
     mov eax, LOADER_START_SECTOR
     mov bx, LOADER_BASE_ADDR
@@ -26,6 +22,18 @@ section mbr vstart=0x7c00
 
     jmp LOADER_BASE_ADDR
 
+print:
+    mov ah, 0x0e
+.next:
+    mov al, [si]
+    cmp al, 0
+    jz .done
+    int 0x10
+    inc si
+    jmp .next
+.done:
+    ret
+    
 read_disk_16:
     mov esi, eax
     mov di, cx
@@ -76,5 +84,7 @@ read_disk_16:
 
     ret
 
+    msg db "welcome to mikuOS!!!", 10, 13, 0
+    
     times 510 - ($ - $$) db 0
     db 0x55, 0xaa
