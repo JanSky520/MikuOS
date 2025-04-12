@@ -2,6 +2,8 @@
 
 section loader vstart=LOADER_BASE_ADDR
     LOADER_STACK_TOP equ LOADER_BASE_ADDR
+
+    cli
     
     in al, 0x92
     or al, 00000010b
@@ -45,7 +47,7 @@ video_desc:
 
     GDT_SIZE  equ $ - gdt_base
     GDT_LIMIT equ GDT_SIZE - 1
-    times 60 dq 0
+    times 50 dq 0
 
     SELECTOR_CODE  equ (0x0001 << 3) + TI_GDT + RPL0
     SELECTOR_DATA  equ (0x0002 << 3) + TI_GDT + RPL0
