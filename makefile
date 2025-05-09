@@ -12,7 +12,7 @@ clean:
 	rm -rf *.bin
 
 bochs: mikuOS.img
-	bochs -q
+	bochs -dbg
 
 git:
 	git add .
