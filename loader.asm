@@ -1,36 +1,18 @@
 %include "boot.inc"
 
+extern print
+
 section loader vstart=LOADER_BASE_ADDR
     LOADER_STACK_TOP equ LOADER_BASE_ADDR
 
     cli
 
-;---打印 loading，表示进入 loader 成功---------------------------
     mov si, msg
-    call print
+    call print                      ;打印loader
 
-;---内存检测-----------------------------------------------------
-detect_memory:
-    xor ebx, ebx
-    mov ax, 0
-    mov es, ax
-    mov di, ards_buf
-    mov edx, 0x534d4150
+    call detect_memory              ;内存检测
     
-detect_next:
-    mov eax, 0xe820
-    mov ecx, 20
-    int 0x15
-    jc error
-    add di, cx
-    inc word [ards_count]
-
-    cmp ebx, 0
-    jnz detect_next
-    mov si, detect
-    call print
-    
-;---准备进入保护模式----------------------------------------------
+;---准备进入保护模式---------------------------------------------
     in al, 0x92
     or al, 00000010b
     out 0x92, al
@@ -54,10 +36,33 @@ p_mode_start:
 
     mov ax, SELECTOR_VIDEO
     mov gs, ax
-    mov byte [gs:480], '1'
-    mov byte [gs:482], '2'
-    mov byte [gs:484], '3'
+    mov byte [gs:480], 'p'
+    mov byte [gs:482], 'a'
+    mov byte [gs:484], 'g'
+    mov byte [gs:486], 'e'
+    mov byte [gs:488], '.'
+    mov byte [gs:490], '.'
+    mov byte [gs:492], '.'
     
+;---开始先页目录占用空间逐字清零----------------------------------
+setup_page:
+    mov ecx, 4096
+    mov esi, 0
+.clear_page_dir:
+    mov byte [PAGE_DIR_TABLE_POS + esi], 0
+    inc esi
+    loop .clear_page_dir
+
+;---开始创建页目录（PDE）-----------------------------------------
+.create_pde:
+    mov eax, PAGE_DIR_TABLE_POS
+    add eax, 0x1000
+    mov ebx, eax
+
+    or eax, PG_US_U | PG_RW_W | PG_P
+    mov [PAGE_DIR_TABLE_POS + 0x0], eax
+    mov [PAGE_DIR_TABLE_POS + 0xc00], eax
+
     jmp $
 
 ;---可供使用的函数------------------------------------------------
@@ -73,7 +78,26 @@ print_next:
     jmp print_next
 print_done:
     ret
-    
+
+detect_memory:
+    xor ebx, ebx
+    mov ax, 0
+    mov es, ax
+    mov di, ards_buf
+    mov edx, 0x534d4150    
+.detect_next:
+    mov eax, 0xe820
+    mov ecx, 20
+    int 0x15
+    jc error
+    add di, cx
+    inc word [ards_count]
+    cmp ebx, 0
+    jnz .detect_next
+    mov si, detect
+    call print
+    ret
+
 error:
     mov si, error_msg
     call print
