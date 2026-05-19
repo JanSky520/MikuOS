@@ -91,7 +91,7 @@ error:
     ards_count dw 0
 
     loader_msg    db "loading system...", 13, 10, 0
-    mem_msg       db "detect memory success...", 13, 10, 10, 0
+    mem_msg       db "detect memory success...", 13, 10, 10, 10, 10, 0
 
     DESC_G_4K         equ 1000_0000_0000_0000_0000_0000b    ;; 设置段界限为 4 KB
     DESC_D_32         equ 100_0000_0000_0000_0000_0000b     ;; 设置代码段/数据段的有效地址（段内偏移地址）及操作数大小为 32 位，而非 16 位
@@ -134,7 +134,7 @@ p_mode_start:
     mov ax, SELECTOR_VIDEO
     mov gs, ax
 
-;; 读取后续扇区
+;; 读取后续扇区用于加载内核
     mov eax, 0x5
     mov ebx, KERNEL_BIN_BASE_ADDR
     mov ecx, 200
@@ -169,10 +169,14 @@ p_mode_start:
     mov byte [gs:492], 'p'
     mov byte [gs:494], 'e'
     mov byte [gs:496], 'n'
+    mov byte [gs:498], ','
+    mov byte [gs:500], '.'
+    mov byte [gs:502], '.'
 
+;; 进入内核
     call kernel_init
     mov esp, 0xc009f000
-    jmp 0xc0001500
+    jmp 0xc0007e00
 
 ;; 操作磁盘函数
 read_disk:
@@ -273,40 +277,41 @@ setup_page:
     ret
 
 kernel_init:
-    xor eax, eax                                        ;清空eax
-    xor ebx, ebx		                                ;清空ebx, ebx记录程序头表地址
-    xor ecx, ecx		                                ;清空ecx, cx记录程序头表中的program header数量
-    xor edx, edx		                                ;清空edx, dx 记录program header尺寸
+    xor eax, eax    ;; 清空 eax
+    xor ebx, ebx    ;; 清空 ebx, ebx 记录程序头表地址
+    xor ecx, ecx    ;; 清空 ecx, ecx 记录程序头表中的 program header 数量
+    xor edx, edx    ;; 清空 edx, edx 记录 program header 尺寸
 
-    mov dx, [KERNEL_BIN_BASE_ADDR + 42]	                ; 偏移文件42字节处的属性是e_phentsize,表示program header table中每个program header大小
-    mov ebx, [KERNEL_BIN_BASE_ADDR + 28]                ; 偏移文件开始部分28字节的地方是e_phoff,表示program header table的偏移，ebx中是第1 个program header在文件中的偏移量
-					                                    ; 其实该值是0x34,不过还是谨慎一点，这里来读取实际值
-    add ebx, KERNEL_BIN_BASE_ADDR                       ; 现在ebx中存着第一个program header的内存地址
-    mov cx, [KERNEL_BIN_BASE_ADDR + 44]                 ; 偏移文件开始部分44字节的地方是e_phnum,表示有几个program header
+    mov dx, [KERNEL_BIN_BASE_ADDR + 42]	    ;; 偏移文件42字节处的属性是 e_phentsize，表示 program header table 中每个 program header 大小
+    mov ebx, [KERNEL_BIN_BASE_ADDR + 28]    ;; 偏移文件开始部分28字节的地方是 e_phoff，表示 program header table 的偏移，ebx 中是第 1 个 program header 在文件中的偏移量
+    add ebx, KERNEL_BIN_BASE_ADDR           ;; 现在ebx中存着第一个program header的内存地址
+    mov cx, [KERNEL_BIN_BASE_ADDR + 44]     ;; 偏移文件开始部分44字节的地方是e_phnum,表示有几个program header
+
 .each_segment:
-    cmp byte [ebx + 0], PT_NULL		                    ; 若p_type等于 PT_NULL,说明此program header未使用。
+    cmp byte [ebx + 0], PT_NULL    ;; 若 p_type 等于 PT_NULL，说明此 program header 未使用
     je .PTNULL
 
-                                                        ;为函数memcpy压入参数,参数是从右往左依然压入.函数原型类似于 memcpy(dst,src,size)
-    push dword [ebx + 16]		                        ; program header中偏移16字节的地方是p_filesz,压入函数memcpy的第三个参数:size
-    mov eax, [ebx + 4]			                        ; 距程序头偏移量为4字节的位置是p_offset，该值是本program header 所表示的段相对于文件的偏移
-    add eax, KERNEL_BIN_BASE_ADDR	                    ; 加上kernel.bin被加载到的物理地址,eax为该段的物理地址
-    push eax				                            ; 压入函数memcpy的第二个参数:源地址
-    push dword [ebx + 8]			                    ; 压入函数memcpy的第一个参数:目的地址,偏移程序头8字节的位置是p_vaddr，这就是目的地址
-    call mem_cpy				                        ; 调用mem_cpy完成段复制
-    add esp,12				                            ; 清理栈中压入的三个参数
+    push dword [ebx + 16]	     ;; program header 中偏移 16 字节的地方是 p_filesz，压入函数 memcpy 的第三个参数 size
+    mov eax, [ebx + 4]		     ;; 距程序头偏移量为 4 字节的位置是 p_offset，该值是本 program header 所表示的段相对于文件的偏移
+    add eax, KERNEL_BIN_BASE_ADDR    ;; 加上 kernel.bin 被加载到的物理地址，eax 为该段的物理地址
+    push eax			     ;; 压入函数memcpy的第二个参数:源地址
+    push dword [ebx + 8]	     ;; 压入函数memcpy的第一个参数:目的地址,偏移程序头8字节的位置是p_vaddr，这就是目的地址
+    call mem_cpy		     ;; 调用mem_cpy完成段复制
+    add esp,12			     ;; 清理栈中压入的三个参数
+
 .PTNULL:
-   add ebx, edx				                            ; edx为program header大小,即e_phentsize,在此ebx指向下一个program header 
+   add ebx, edx    ;; edx 为program header 大小，即 e_phentsize，在此 ebx 指向下一个 program header 
    loop .each_segment
    ret
 
 ;; 内存拷贝函数
 mem_cpy:		      
-    cld                    ;; 将FLAG的方向标志位DF清零，rep在执行循环时候si，di就会加1
+    cld                    ;; 将 FLAG 的方向标志位 DF 清零，rep 在执行循环时候 si，di 就会加 1
     push ebp               ;; 这两句指令是在进行栈框架构建
     mov ebp, esp
-    push ecx               ;; rep指令用到了ecx，但ecx对于外层段的循环还有用，故先入栈备份
-    mov edi, [ebp + 8]	   ;; dst，edi与esi作为偏移，没有指定段寄存器的话，默认是ss寄存器进行配合
+    push ecx               ;; rep 指令用到了 ecx，但 ecx 对于外层段的循环还有用，故先入栈备份
+
+    mov edi, [ebp + 8]	   ;; dst，edi 与 esi 作为偏移，没有指定段寄存器的话，默认是 ss 寄存器进行配合
     mov esi, [ebp + 12]	   ;; src
     mov ecx, [ebp + 16]    ;; size
     rep movsb		   ;; 逐字节拷贝

@@ -8,11 +8,11 @@ mikuOS.img: mbr.bin loader.bin kernel.bin
 	rm -rf *.bin
 	bochs -q
 
-print.o: lib/kernel/print.S
+print.o: lib/kernel/print.asm
 	nasm -f elf32 -o lib/kernel/print.o lib/kernel/print.asm
 
 kernel.bin: kernel/main.o
-	ld -m elf_i386 -Ttext 0x00001500 -e main -o kernel.bin  kernel/main.o lib/kernel/print.o
+	ld -m elf_i386 -Ttext 0x00007E00 -e main -o kernel.bin  kernel/main.o lib/kernel/print.o
 
 main.o: kernel/main.c
 	gcc -o kernel/main.o -c -m32 -I lib/kernel/ kernel/main.c
